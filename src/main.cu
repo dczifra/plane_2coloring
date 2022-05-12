@@ -227,12 +227,13 @@ int main(int argc, char* argv[]){
   for (int v = 0; v < g.nodes; v++) {
     if ((nstatus[v] != in) && (nstatus[v] != out)) {fprintf(stderr, "ERROR: found unprocessed node in graph\n\n");  exit(-1);}
     if (nstatus[v] == in) {
-      for (int i = g.nindex[v]; i < g.nindex[v + 1]; i++) {
+      for (ull i = g.nindex[v]; i < g.nindex[v + 1]; i++) {
         if (nstatus[g.nlist[i]] == in) {fprintf(stderr, "ERROR: found adjacent nodes in MIS\n\n");  exit(-1);}
       }
-    } else {
+    }
+    else {
       int flag = 0;
-      for (int i = g.nindex[v]; i < g.nindex[v + 1]; i++) {
+      for (ull i = g.nindex[v]; i < g.nindex[v + 1]; i++) {
         if (nstatus[g.nlist[i]] == in) {
           flag = 1;
         }

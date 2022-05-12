@@ -36,7 +36,7 @@ Author: Martin Burtscher
 #include <vector>
 #include <algorithm>
 
-#define ull unsigned long long
+#define ull unsigned long
 
 struct ECLgraph {
   ull nodes;

@@ -3,3 +3,4 @@ data
 src/bin
 *.ipynb_checkpoints
 *__pycache__
+src/trash

@@ -33,20 +33,76 @@ Author: Martin Burtscher
 
 #include <cstdlib>
 #include <cstdio>
+#include <vector>
+#include <algorithm>
+
+#define ull unsigned long long
 
 struct ECLgraph {
-  int nodes;
-  int edges;
-  int* nindex;
+  ull nodes;
+  ull edges;
+  ull* nindex;
   int* nlist;
   int* eweight;
 };
+
+ECLgraph createECLgraph(){
+  ECLgraph g;
+  ull N,M, K;
+  std::cin>>N>>M>>K;
+  std::vector<std::pair<int, int>> patt(K);
+  for(int i=0;i<K;i++) std::cin>>patt[i].first>>patt[i].second;
+
+  g.nodes = N*M;
+  g.edges = g.nodes*K*4;
+  ull estimated = g.edges;
+
+  g.nindex = new ull[g.nodes + 1];
+  g.nlist = new int[g.edges];
+  g.eweight = NULL; // We dont use it
+  for(int i=0;i<g.nodes+1;i++) g.nindex[i]=0;
+  for(ull i=0;i<g.edges;i++) g.nlist[i]=0;
+
+  std::vector<std::pair<int,int>> signs = {{-1,-1}, {-1,1}, {1,-1}, {1,1}};
+  ull ind = 0;
+  for(int coord=0;coord<N*M;coord++){
+    int i = coord/M;
+    int j = coord%M;
+    std::vector<int> edges(patt.size()*4);
+    ull edge_ind = 0;
+    for(std::pair<int,int>& p: patt){
+      int x = p.first;
+      int y = p.second;
+      for(std::pair<int,int>& sign: signs){
+        int new_x = i+x*sign.first;
+        int new_y = j+y*sign.second;
+        int new_coord = ((new_x<0?new_x+N:new_x)%N)*M+((new_y<0?new_y+M:new_y)%M);
+        edges[edge_ind++] = new_coord;
+      }
+    }
+
+    std::sort(edges.begin(), edges.end());
+    // === Update CSR representation ===
+    if(edges.size() == 0) continue;
+    int last = -1;
+    for(int i=0;i<edges.size();i++){
+      if(edges[i]!=last){
+        g.nlist[ind++] = edges[i];
+        g.nindex[coord+1] = ind;
+        last = edges[i];
+      }
+    }
+  }
+  g.edges = ind;
+  std::cout<<"True: "<<g.edges<<" estimated: "<<estimated<<std::endl;
+  return g;
+}
 
 ECLgraph readECLgraph_std(){
   ECLgraph g;
   std::cin>>g.nodes>>g.edges;
 
-  g.nindex = (int*)malloc((g.nodes + 1) * sizeof(g.nindex[0]));
+  g.nindex = (ull*)malloc((g.nodes + 1) * sizeof(g.nindex[0]));
   g.nlist = (int*)malloc(g.edges * sizeof(g.nlist[0]));
   g.eweight = (int*)malloc(g.edges * sizeof(g.eweight[0]));
   if ((g.nindex == NULL) || (g.nlist == NULL) || (g.eweight == NULL)){
@@ -56,10 +112,10 @@ ECLgraph readECLgraph_std(){
   for(int i=0;i<g.nodes+1;i++){
       std::cin>>(g.nindex[i]);
   }
-  for(int i=0;i<g.edges;i++){
+  for(ull i=0;i<g.edges;i++){
       std::cin>>(g.nlist[i]);
   }
-  for(int i=0;i<g.edges;i++){
+  for(ull i=0;i<g.edges;i++){
       std::cin>>(g.eweight[i]);
   }
     
@@ -75,9 +131,9 @@ ECLgraph readECLgraph(const char* const fname)
   FILE* f = fopen(fname, "rb");  if (f == NULL) {fprintf(stderr, "ERROR: could not open file %s\n\n", fname);  exit(-1);}
   cnt = fread(&g.nodes, sizeof(g.nodes), 1, f);  if (cnt != 1) {fprintf(stderr, "ERROR: failed to read nodes\n\n");  exit(-1);}
   cnt = fread(&g.edges, sizeof(g.edges), 1, f);  if (cnt != 1) {fprintf(stderr, "ERROR: failed to read edges\n\n");  exit(-1);}
-  if ((g.nodes < 1) || (g.edges < 0)) {fprintf(stderr, "ERROR: node or edge count too low\n\n");  exit(-1);}
+  if ((g.nodes < 1) || (g.edges <= 0)) {fprintf(stderr, "ERROR: node or edge count too low\n\n");  exit(-1);}
 
-  g.nindex = (int*)malloc((g.nodes + 1) * sizeof(g.nindex[0]));
+  g.nindex = (ull*)malloc((g.nodes + 1) * sizeof(g.nindex[0]));
   g.nlist = (int*)malloc(g.edges * sizeof(g.nlist[0]));
   g.eweight = (int*)malloc(g.edges * sizeof(g.eweight[0]));
   if ((g.nindex == NULL) || (g.nlist == NULL) || (g.eweight == NULL)) {fprintf(stderr, "ERROR: memory allocation failed\n\n");  exit(-1);}
@@ -108,7 +164,7 @@ ECLgraph readECLgraph(const char* const fname)
 
 void writeECLgraph(const ECLgraph g, const char* const fname)
 {
-  if ((g.nodes < 1) || (g.edges < 0)) {fprintf(stderr, "ERROR: node or edge count too low\n\n");  exit(-1);}
+  if ((g.nodes < 1) || (g.edges <= 0)) {fprintf(stderr, "ERROR: node or edge count too low\n\n");  exit(-1);}
   int cnt;
   FILE* f = fopen(fname, "wb");  if (f == NULL) {fprintf(stderr, "ERROR: could not open file %s\n\n", fname);  exit(-1);}
   cnt = fwrite(&g.nodes, sizeof(g.nodes), 1, f);  if (cnt != 1) {fprintf(stderr, "ERROR: failed to write nodes\n\n");  exit(-1);}

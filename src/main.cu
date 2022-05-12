@@ -50,7 +50,7 @@ for GPUs. ACM Transactions on Parallel Computing, Vol. 5, No. 2, Article 8
 #include <iostream>
 #include "ECLgraph.h"
 
-static const int Device = 0;
+static const int Device = 4;
 static const int ThreadsPerBlock = 256;
 
 typedef unsigned char stattype;
@@ -59,7 +59,7 @@ static const stattype out = 0;
 
 /* main computation kernel */
 
-static __global__ void findmins(const int nodes, const int* const __restrict__ nidx, const int* const __restrict__ nlist, volatile stattype* const __restrict__ nstat)
+static __global__ void findmins(const int long long nodes, const ull* const __restrict__ nidx, const int* const __restrict__ nlist, volatile stattype* const __restrict__ nstat)
 {
   const int from = threadIdx.x + blockIdx.x * ThreadsPerBlock;
   const int incr = gridDim.x * ThreadsPerBlock;
@@ -70,14 +70,15 @@ static __global__ void findmins(const int nodes, const int* const __restrict__ n
     for (int v = from; v < nodes; v += incr) {
       const stattype nv = nstat[v];
       if (nv & 1) {
-        int i = nidx[v];
+        ull i = nidx[v];
         while ((i < nidx[v + 1]) && ((nv > nstat[nlist[i]]) || ((nv == nstat[nlist[i]]) && (v > nlist[i])))) {
           i++;
         }
         if (i < nidx[v + 1]) {
           missing = 1;
-        } else {
-          for (int i = nidx[v]; i < nidx[v + 1]; i++) {
+        }
+        else {
+          for (ull i = nidx[v]; i < nidx[v + 1]; i++) {
             nstat[nlist[i]] = out;
           }
           nstat[v] = in;
@@ -99,7 +100,7 @@ static __device__ unsigned int hash(unsigned int val)
 
 /* prioritized-selection initialization kernel */
 
-static __global__ void init(const int nodes, const int edges, const int* const __restrict__ nidx, stattype* const __restrict__ nstat)
+static __global__ void init(const long long nodes, const long long edges, const ull* const __restrict__ nidx, stattype* const __restrict__ nstat)
 {
   const int from = threadIdx.x + blockIdx.x * ThreadsPerBlock;
   const int incr = gridDim.x * ThreadsPerBlock;
@@ -109,7 +110,7 @@ static __global__ void init(const int nodes, const int edges, const int* const _
 
   for (int i = from; i < nodes; i += incr) {
     stattype val = in;
-    const int degree = nidx[i + 1] - nidx[i];
+    const ull degree = nidx[i + 1] - nidx[i]; // could remain int
     if (degree > 0) {
       float x = degree - (hash(i) * 0.00000000023283064365386962890625f);
       int res = __float2int_rn(scaledavg / (avg + x));
@@ -128,7 +129,7 @@ struct GPUTimer
   float stop() {cudaEventRecord(end, 0);  cudaEventSynchronize(end);  float ms;  cudaEventElapsedTime(&ms, beg, end);  return 0.001f * ms;}
 };
 
-static void computeMIS(const int nodes, const int edges, const int* const __restrict__ nidx, const int* const __restrict__ nlist, stattype* const __restrict__ nstat)
+static void computeMIS(const long long nodes, const long long edges, const ull* const __restrict__ nidx, const int* const __restrict__ nlist, stattype* const __restrict__ nstat)
 {
   cudaSetDevice(Device);
   cudaDeviceProp deviceProp;
@@ -138,15 +139,16 @@ static void computeMIS(const int nodes, const int edges, const int* const __rest
   const int mTpSM = deviceProp.maxThreadsPerMultiProcessor;
   printf("gpu: %s with %d SMs and %d mTpSM (%.1f MHz core and %.1f MHz mem)\n", deviceProp.name, SMs, mTpSM, deviceProp.clockRate * 0.001, deviceProp.memoryClockRate * 0.001);
 
-  int* nidx_d;
+  ull* nidx_d;
   int* nlist_d;
   stattype* nstat_d;
 
-  if (cudaSuccess != cudaMalloc((void **)&nidx_d, (nodes + 1) * sizeof(int))) {fprintf(stderr, "ERROR: could not allocate nidx_d\n\n");  exit(-1);}
+  if (cudaSuccess != cudaMalloc((void **)&nidx_d, (nodes + 1) * sizeof(ull))) {fprintf(stderr, "ERROR: could not allocate nidx_d\n\n");  exit(-1);}
   if (cudaSuccess != cudaMalloc((void **)&nlist_d, edges * sizeof(int))) {fprintf(stderr, "ERROR: could not allocate nlist_d\n\n");  exit(-1);}
   if (cudaSuccess != cudaMalloc((void **)&nstat_d, nodes * sizeof(stattype))) {fprintf(stderr, "ERROR: could not allocate nstat_d\n\n");  exit(-1);}
 
-  if (cudaSuccess != cudaMemcpy(nidx_d, nidx, (nodes + 1) * sizeof(int), cudaMemcpyHostToDevice)) {fprintf(stderr, "ERROR: copying to device failed\n\n");  exit(-1);}
+  if (cudaSuccess != cudaMemcpy(nidx_d, nidx, (nodes + 1) * sizeof(ull), cudaMemcpyHostToDevice)) {fprintf(stderr, "ERROR: copying to device failed\n\n");  exit(-1);}
+  std::cout<<"edge size: "<<edges * sizeof(int)<<std::endl;
   if (cudaSuccess != cudaMemcpy(nlist_d, nlist, edges * sizeof(int), cudaMemcpyHostToDevice)) {fprintf(stderr, "ERROR: copying to device failed\n\n");  exit(-1);}
 
   cudaFuncSetCacheConfig(init, cudaFuncCachePreferL1);
@@ -172,33 +174,54 @@ static void computeMIS(const int nodes, const int edges, const int* const __rest
 
 int main(int argc, char* argv[]){
   bool silent = false;
+  int mode = 0;
   if((argc > 2) && ((std::string)argv[2] == "--silent")) silent = true;
+  if((argc > 3)) mode = std::stoi(argv[3]);
 
-  if(!silent) printf("ECL-MIS v1.3 (%s)\n", __FILE__);
-  if(!silent) printf("Copyright 2017-2020 Texas State University\n");
+  printf("ECL-MIS v1.3 (%s)\n", __FILE__);
+  printf("Copyright 2017-2020 Texas State University\n");
 
   if (argc < 2) {fprintf(stderr, "USAGE: %s input_file_name\n\n", argv[0]);  exit(-1);}
 
-  //ECLgraph g = readECLgraph_std();
-  ECLgraph g = readECLgraph(argv[1]);
-  printf("configuration: %d nodes and %d edges (%s)\n", g.nodes, g.edges, argv[1]);
+  ECLgraph g;
+  switch(mode){
+    case 0: g = createECLgraph();break;
+    case 1: g = readECLgraph(argv[1]);break;
+    case 2: g = readECLgraph_std();break;
+    default: break;
+  }
+
+  /*
+  for(int i=0;i<g.nodes+1;i++){
+      std::cout<<(g.nindex[i])<<" ";
+  }
+  std::cout<<std::endl;
+  for(int i=0;i<g.edges;i++){
+      std::cout<<(g.nlist[i])<<" ";
+  }
+  std::cout<<std::endl;
+  */
+  
+  printf("configuration: %llu nodes and %llu edges (%s)\n", g.nodes, g.edges, argv[1]);
   printf("average degree: %.2f edges per node\n", 1.0 * g.edges / g.nodes);
+  //exit(1);
 
   stattype* nstatus = (stattype*)malloc(g.nodes * sizeof(nstatus[0]));
   if (nstatus == NULL) {fprintf(stderr, "ERROR: could not allocate nstatus\n\n");  exit(-1);}
 
   computeMIS(g.nodes, g.edges, g.nindex, g.nlist, nstatus);
 
-  if(silent) printf("[DATA]\n");
+  printf("[DATA]\n");
   int count = 0;
-  for (int v = 0; v < g.nodes; v++) {
-    if (nstatus[v] == in) {
+  
+  for (int v = 0; v < g.nodes; v++){
+    if (nstatus[v] == in){
       count++;
-      std::cout<<v<<", ";
+      if(!silent) std::cout<<v<<", ";
     }
   }
-  if(!silent) printf("elements in set: %d (%.1f%%)\n", count, 100.0 * count / g.nodes);
-  else printf("\n[SUMARY] n=%d proc=(%.1f%%)\n", count, 100.0 * count / g.nodes);
+
+  printf("\n[SUMARY] n=%d proc=(%.1f%%)\n", count, 100.0 * count / g.nodes);
   /* result verification code */
 
   for (int v = 0; v < g.nodes; v++) {

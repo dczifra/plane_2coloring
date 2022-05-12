@@ -1,4 +1,5 @@
 import os
+import itertools
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -62,8 +63,8 @@ def write_CSR(graph, filename, simple):
 
 def get_independent(graph):
     filename = os.path.dirname(os.path.abspath(__file__))+'/../data/graph.csr'
-    write_CSR(graph, filename = filename, simple=False)    
-    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', filename, '--silent'],
+    write_CSR(graph, filename = filename, simple=False)
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', filename, '--silent', '1'],
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
 
     out,err = p.communicate()
@@ -80,7 +81,7 @@ def get_independent_std(graph):
     stream+=" ".join([str(e) for e in eweight])+"\n"
     
     print("Graph collected")
-    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', "nofile", '--silent'],
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', "nofile", '--silent', '2'],
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
 
     out,err = p.communicate(stream)
@@ -88,6 +89,25 @@ def get_independent_std(graph):
         print(line)
         
     return stream
+
+def get_independent_patt(cells):
+    N,M = np.shape(cells)
+    print("Patt begin")
+    patts = generate_pattern(cells, N//2, M//2, r)
+    print(f"Patt end [{len(patts)}]")
+
+    stream = "{} {} {} ".format(N, M, len(patts))
+    stream+=" ".join([f"{p[0]} {p[1]}" for p in patts])+"\n"
+
+    #print(stream)
+    
+    print("Stream collected")
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', "nofile", '--silent', '0'],
+          stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
+
+    out,err = p.communicate(stream)
+    for line in out.split('\n')[:-1]:
+        print(line)
 
 class Coord:
     def __init__(self, x,y):
@@ -117,10 +137,35 @@ class HexagonGrid:
         self.cells = []
         self.base = Cell(center, 6, length)
         for col in range(m):
-            self.cells.append(self.base)
+            col_of_cells = [self.base]
             for row in range(n-1):
-                self.cells.append(Cell(self.cells[-1].shift(-2), 6, length))
+                col_of_cells.append(Cell(col_of_cells[-1].shift(-2), 6, length))
             self.base = Cell(self.base.shift(0 if(col%2==0) else -1), 6, length)
+            self.cells.append(col_of_cells)
+    def get_cells(self):
+        ind = 0
+        for row in self.cells:
+            for c in row:
+                yield ind,c
+                ind+=1
+
+class SquareGrid:
+    def __init__(self, center, length, n, m):
+        self.cells = []
+        self.base = Cell(center, 4, length)
+        for col in range(m):
+            col_of_cells = [self.base]
+            for row in range(n-1):
+                col_of_cells.append(Cell(col_of_cells[-1].shift(0), 4, length))
+            self.base = Cell(self.base.shift(-1), 4, length)
+            self.cells.append(col_of_cells)
+    
+    def get_cells(self):
+        ind = 0
+        for row in self.cells:
+            for c in row:
+                yield ind,c
+                ind+=1
 
 EPS = 0.000000001
 def one_dist(c1, c2, r):
@@ -143,17 +188,37 @@ def one_dist(c1, c2, r):
                 if(larger and smaller):
                     return True
         return False
-                
-def create_graph(cells, r):
-    N = len(cells)
-    graph = nx.Graph()
-    graph.add_nodes_from(range(N))
 
-    for i in range(N):
-        for j in range(i+1, N):
-            if(one_dist(cells[i],cells[j], r)):
-                graph.add_edge(i,j, weight=1)
-    return graph
+# TODO:
+#      * Tets generate pattern
+#      * Add directions
+def generate_pattern(cells, x0, y0, r):
+    N,M = np.shape(cells)
+    patt = []
+    for x in range(N//2):
+        for y in range(M//2):
+            if(one_dist(cells[x0][y0], cells[x0+x][y0+y], r)):
+                patt.append([x,y])
+    return patt
+
+def create_graph(cells, r):
+    N,M = np.shape(cells)
+    print("Patt begin")
+    patts = generate_pattern(cells, N//2, M//2, r)
+    print("Patt end")
+
+    graph = nx.Graph()
+    graph.add_nodes_from(range(N*M))
+
+    for i,j in itertools.product(range(N), range(M)):
+        coord = i*M+j
+        # Add edges to 1-distance:
+        for x,y in patts:
+            # Add 4 directions
+            for a,b in itertools.product([1,-1], [1,-1]):
+                new_coord = ((i+x*a)%N)*M+((j+y*b)%M)
+                graph.add_edge(coord,new_coord, weight=1)
+    return graph                
 
 def launch_poligon_graph(type):
     graph = nx.Graph()
@@ -171,11 +236,29 @@ def launch_poligon_graph(type):
 
 
 if __name__ == "__main__":
-    r = 0.02
-    grid = HexagonGrid([-4,4], r, 100, 100)
-    G = create_graph(grid.cells, r)
-    print(len(G.nodes), len(G.edges))
-    print("Graph created")
+    mode = 2
+    if mode == 0:
+        r = 0.02
+        #grid = HexagonGrid([-4,4], r, 400, 400)
+        grid = SquareGrid([-4,4], r, 200, 200)
+        G = create_graph(grid.cells, r)
+        print(len(G.nodes), len(G.edges))
+        print("Graph created")
+        get_independent(G)
+    elif mode == 1:
+        r = 0.1
+        grid = SquareGrid([-4,4], r, 80, 80)
+        G = create_graph(grid.cells, r)
+        
+        print(len(G.nodes), len(G.edges))
+        print("Graph created")
+        get_independent(G)
+        #get_independent_std(G)
+    elif mode == 2:
+        r = 0.005
+        grid = SquareGrid([-4,4], r, 1000, 1000)
+        get_independent_patt(grid.cells)
+    else:
+        print("Mode not found")
 
-    get_independent(G)
-    #get_independent_std(G)
+# ulimit -u ???

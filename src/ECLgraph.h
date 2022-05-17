@@ -66,8 +66,8 @@ ECLgraph createECLgraph(){
   std::vector<std::pair<int,int>> signs = {{-1,-1}, {-1,1}, {1,-1}, {1,1}};
   ull ind = 0;
   for(int coord=0;coord<N*M;coord++){
-    int i = coord/M;
-    int j = coord%M;
+    int i = coord%N;
+    int j = coord/N;
     std::vector<int> edges(patt.size()*4);
     ull edge_ind = 0;
     for(std::pair<int,int>& p: patt){
@@ -76,7 +76,7 @@ ECLgraph createECLgraph(){
       for(std::pair<int,int>& sign: signs){
         int new_x = i+x*sign.first;
         int new_y = j+y*sign.second;
-        int new_coord = ((new_x<0?new_x+N:new_x)%N)*M+((new_y<0?new_y+M:new_y)%M);
+        int new_coord = ((new_x<0?new_x+N:new_x)%N)+((new_y<0?new_y+M:new_y)%M)*N;
         edges[edge_ind++] = new_coord;
       }
     }

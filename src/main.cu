@@ -48,6 +48,7 @@ for GPUs. ACM Transactions on Parallel Computing, Vol. 5, No. 2, Article 8
 #include <stdio.h>
 #include <cuda.h>
 #include <iostream>
+#include <fstream>
 #include "ECLgraph.h"
 
 static const int Device = 4;
@@ -202,9 +203,8 @@ int main(int argc, char* argv[]){
   std::cout<<std::endl;
   */
   
-  printf("configuration: %llu nodes and %llu edges (%s)\n", g.nodes, g.edges, argv[1]);
+  printf("configuration: %lu nodes and %lu edges (%s)\n", g.nodes, g.edges, argv[1]);
   printf("average degree: %.2f edges per node\n", 1.0 * g.edges / g.nodes);
-  //exit(1);
 
   stattype* nstatus = (stattype*)malloc(g.nodes * sizeof(nstatus[0]));
   if (nstatus == NULL) {fprintf(stderr, "ERROR: could not allocate nstatus\n\n");  exit(-1);}
@@ -213,13 +213,15 @@ int main(int argc, char* argv[]){
 
   printf("[DATA]\n");
   int count = 0;
-  
+  std::ofstream outfile((std::string)argv[1]+".out");
   for (int v = 0; v < g.nodes; v++){
     if (nstatus[v] == in){
       count++;
       if(!silent) std::cout<<v<<", ";
+      outfile<<v<<" ";
     }
   }
+  outfile.close();
 
   printf("\n[SUMARY] n=%d proc=(%.1f%%)\n", count, 100.0 * count / g.nodes);
   /* result verification code */

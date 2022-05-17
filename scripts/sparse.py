@@ -93,7 +93,7 @@ def get_independent_std(graph):
         
     return stream
 
-def get_independent_patt(cells):
+def get_independent_patt(cells, filename):
     N,M = np.shape(cells)
     print("Patt begin")
     patts = generate_pattern(cells, N//2, M//2, r)
@@ -105,7 +105,7 @@ def get_independent_patt(cells):
     #print(stream)
     
     print("Stream collected")
-    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', "nofile", '--silent', '0'],
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', filename, '--silent', '0'],
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
 
     out,err = p.communicate(stream)
@@ -153,10 +153,10 @@ if __name__ == "__main__":
         grid = SquareGrid([-4,4], r, 1600, 1600)
         get_independent_patt(grid.cells)
     elif mode == 3:
-        size = 1600
-        for r in [0.01, 0.005, 0.0025]:
+        size = [500, 500]
+        for r in [0.01]:
             print(f"r = {r}")
-            grid = SquareGrid([-4,4], r, size, size)
-            get_independent_patt(grid.cells)
+            grid = SquareGrid([-4,4], r, size[0], size[1])
+            get_independent_patt(grid.cells, f"../data/r:{r}_size:{size[0]}x{size[1]}")
     else:
         print("Mode not found")

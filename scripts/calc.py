@@ -5,7 +5,10 @@ def get_segment(eps):
     return (eps/(2)) - (np.cos(eps/2)*np.sin(eps/2))
 
 def calc1():
-    for alpha in np.linspace(0.001, np.pi/2, 100000):
+    m = 0
+    ind = -1
+    #for alpha in np.linspace(0.001, np.pi/3, 100000):
+    for alpha in np.linspace(0.001, 0.722734248+0.00001, 100000):
         diff = np.sin(alpha)/np.tan((np.pi-alpha)/2)
         beta = np.arcsin((np.cos(alpha)-diff)/2)
         gamma = (np.pi-2*alpha-2*beta)/2
@@ -22,17 +25,26 @@ def calc1():
 
         # If we place the pattern 60 deg below th others, than x should be:
         x_should = 0.5*np.tan(np.pi/6)
+        e1 = (np.pi-gamma)/2
+        e2 = np.arctan(0.5/x)
+        #e,f = 2*(np.sin(alpha)+x+np.cos(np.pi-e1-e2)), (2*np.sin(np.pi/2-alpha-gamma/2))*2
+        e,f = 2*(2*np.sin(alpha)+x), 2*(2*np.cos(alpha)-0.5)
+        new_area2 = e*f/2
+        if(covered_area/new_area2 > m):
+            m = covered_area/new_area2
+            #ind = 180*alpha/np.pi
+            ind = {
+                "radius":(alpha, beta, gamma, x, np.pi-e1-e2),
+                "area":(covered_area, new_area2),
+                "e,f":(e,f)}
+
         if(np.abs(x-x_should) < 0.00001):
             new_area = np.sqrt((2*np.cos(gamma/2))**2-1)*2
-            #new_area = np.sqrt(3)*2
-            #print(new_area*2)
-            #print(np.sqrt(3)*2)
 
-            #print(np.cos(gamma/2), base/new)
-            #print(segment_hor, segment_ver, trapez, triangle, "Final", ratio*covered_area*all_area_inf)
-            #print(f"Alpha: {alpha:.2f} beta: {beta:.2f} gamma: {gamma:.2f}  [x:{x}]==> Final 0: {covered_area*all_area_inf:.4f} [advanced: {ratio*covered_area*all_area_inf:.4f}]")
-            
+            print(covered_area/new_area2, new_area2, new_area)
+            print("e,f: ", e,f, new_area2)
             print(f"Alpha: {alpha} beta: {beta} gamma: {gamma}  [x:{x}]==> Final 0: {covered_area*all_area_inf:.4f} [advanced: {covered_area/new_area:.4f}]")
+    print(m, ind)
 
 def calc2():
     pass

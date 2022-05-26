@@ -7,7 +7,7 @@ from scipy.sparse import csr_matrix
 
 from subprocess import Popen, STDOUT, PIPE
 
-from grid import SquareGrid, HexagonGrid
+from grid import SquareGrid, HexagonGrid, TriangleGrid
 from grid import generate_pattern, create_graph
 
 def get_erc_format(graph, simple = False):
@@ -101,11 +101,27 @@ def get_independent_patt(cells, filename):
 
     stream = "{} {} {} ".format(N, M, len(patts))
     stream+=" ".join([f"{p[0]} {p[1]}" for p in patts])+"\n"
-
-    #print(stream)
     
     print("Stream collected")
     p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main', filename, '--silent', '0'],
+          stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
+
+    out,err = p.communicate(stream)
+    for line in out.split('\n')[:-1]:
+        print(line)
+
+def get_independent_patt_hex(N, patt_pos, patt_neg, filename, talky=False):
+    if(len(patt_pos) != len(patt_neg)):
+        print("Patt pos and neg not equal: ", len(patt_pos), len(patt_neg))
+        return
+    
+    stream = f"{N} {len(patt_pos)} "
+    stream+=" ".join([f"{p[0]} {p[1]} {p[2]}" for p in patt_pos])+" "
+    stream+=" ".join([f"{p[0]} {p[1]} {p[2]}" for p in patt_neg])+"\n"
+    
+    print("Stream collected")
+    if(talky): print(stream)
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/main',filename, '--silent', '3'],
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
 
     out,err = p.communicate(stream)
@@ -128,7 +144,7 @@ def launch_poligon_graph(type):
 
 
 if __name__ == "__main__":
-    mode = 3
+    mode = 4
     if mode == 0:
         r = 0.02
         #grid = HexagonGrid([-4,4], r, 400, 400)
@@ -158,5 +174,17 @@ if __name__ == "__main__":
             print(f"r = {r}")
             grid = SquareGrid([-4,4], r, size[0], size[1])
             get_independent_patt(grid.cells, f"../data/r:{r}_size:{size[0]}x{size[1]}")
+    elif mode == 4:
+        #r = 0.02
+        #grid = TriangleGrid(100)
+        r = 0.05
+        N = 800
+        grid = TriangleGrid(N)
+        patt_pos = grid.get_pattern(r, center = [1,0,0])
+        patt_neg = grid.get_pattern(r, center = [0,-1,0])
+        patt_pos = [[p[0]-1, p[1], p[2]] for p in patt_pos]
+        patt_neg = [[p[0], p[1]+1, p[2]] for p in patt_neg]
+        print(f"Grid diam/size: {N}/{len(grid.all_points)}  K1: {len(patt_pos)} K2: {len(patt_neg)}")
+        get_independent_patt_hex(N, patt_pos, patt_neg, f"../data/r:{r}_N:{N}")
     else:
         print("Mode not found")

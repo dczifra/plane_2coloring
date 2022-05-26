@@ -49,7 +49,9 @@ for GPUs. ACM Transactions on Parallel Computing, Vol. 5, No. 2, Article 8
 #include <cuda.h>
 #include <iostream>
 #include <fstream>
+
 #include "ECLgraph.h"
+#include "grids.h"
 
 static const int Device = 4;
 static const int ThreadsPerBlock = 256;
@@ -149,7 +151,7 @@ static void computeMIS(const long long nodes, const long long edges, const ull* 
   if (cudaSuccess != cudaMalloc((void **)&nstat_d, nodes * sizeof(stattype))) {fprintf(stderr, "ERROR: could not allocate nstat_d\n\n");  exit(-1);}
 
   if (cudaSuccess != cudaMemcpy(nidx_d, nidx, (nodes + 1) * sizeof(ull), cudaMemcpyHostToDevice)) {fprintf(stderr, "ERROR: copying to device failed\n\n");  exit(-1);}
-  std::cout<<"edge size: "<<edges * sizeof(int)<<std::endl;
+  std::cout<<"edge size: "<<edges * sizeof(int)<<" [byte]"<<std::endl;
   if (cudaSuccess != cudaMemcpy(nlist_d, nlist, edges * sizeof(int), cudaMemcpyHostToDevice)) {fprintf(stderr, "ERROR: copying to device failed\n\n");  exit(-1);}
 
   cudaFuncSetCacheConfig(init, cudaFuncCachePreferL1);
@@ -184,13 +186,17 @@ int main(int argc, char* argv[]){
 
   if (argc < 2) {fprintf(stderr, "USAGE: %s input_file_name\n\n", argv[0]);  exit(-1);}
 
+  TriangleGrid grid;
   ECLgraph g;
   switch(mode){
     case 0: g = createECLgraph();break;
     case 1: g = readECLgraph(argv[1]);break;
     case 2: g = readECLgraph_std();break;
+    case 3: g = grid.create_hexagon();break;
     default: break;
   }
+
+  std::cout<<"[CUDA] Hexagon grid"<<std::endl;
 
   /*
   for(int i=0;i<g.nodes+1;i++){
@@ -218,7 +224,9 @@ int main(int argc, char* argv[]){
     if (nstatus[v] == in){
       count++;
       if(!silent) std::cout<<v<<", ";
-      outfile<<v<<" ";
+      
+      if(mode == 3) grid.log_node(outfile, v);
+      else outfile<<v<<" ";
     }
   }
   outfile.close();
